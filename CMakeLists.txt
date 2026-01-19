@@ -37,3 +37,52 @@ endif()
 
 # Install target
 install(TARGETS dashboard RUNTIME DESTINATION bin)
+
+# Testing
+enable_testing()
+
+# Test executable - needs render.c, config.c, and platform metrics for the functions being tested
+add_executable(test_render
+    tests/test_render.c
+    src/render.c
+    src/config.c
+    ${PLATFORM_SOURCES}
+)
+
+# Platform-specific test libraries
+if(APPLE)
+    target_link_libraries(test_render "-framework CoreFoundation" "-framework IOKit")
+endif()
+
+# Compiler warnings for tests
+if(MSVC)
+    target_compile_options(test_render PRIVATE /W4)
+else()
+    target_compile_options(test_render PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_test(NAME render_tests COMMAND test_render)
+
+# Memory leak test executable
+add_executable(test_memory_leaks
+    tests/test_memory_leaks.c
+    src/config.c
+    src/render.c
+    ${PLATFORM_SOURCES}
+)
+
+# Platform-specific test libraries for memory leak tests
+if(APPLE)
+    target_link_libraries(test_memory_leaks "-framework CoreFoundation" "-framework IOKit")
+elseif(WIN32)
+    target_link_libraries(test_memory_leaks psapi)
+endif()
+
+# Compiler warnings for memory leak tests
+if(MSVC)
+    target_compile_options(test_memory_leaks PRIVATE /W4)
+else()
+    target_compile_options(test_memory_leaks PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_test(NAME memory_leak_tests COMMAND test_memory_leaks)
