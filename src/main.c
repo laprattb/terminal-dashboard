@@ -1,20 +1,36 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <signal.h>
 #include <string.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <signal.h>
 #include <unistd.h>
 #include <getopt.h>
+#endif
 
 #include "config.h"
 #include "metrics.h"
+#include "metrics_gpu.h"
 #include "render.h"
 
 static volatile int running = 1;
 
+#ifdef _WIN32
+static BOOL WINAPI console_handler(DWORD signal) {
+    if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT || signal == CTRL_CLOSE_EVENT) {
+        running = 0;
+        return TRUE;
+    }
+    return FALSE;
+}
+#else
 static void signal_handler(int sig) {
     (void)sig;
     running = 0;
 }
+#endif
 
 static void print_usage(const char *program_name) {
     printf("Usage: %s [OPTIONS]\n\n", program_name);
@@ -36,6 +52,26 @@ int main(int argc, char *argv[]) {
     const char *config_path = NULL;
 
     /* Parse command line arguments */
+#ifdef _WIN32
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            print_usage(argv[0]);
+            return 0;
+        } else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
+            print_version();
+            return 0;
+        } else if ((strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) && i + 1 < argc) {
+            config_path = argv[++i];
+        } else if (strncmp(argv[i], "-c", 2) == 0 && strlen(argv[i]) > 2) {
+            config_path = argv[i] + 2;
+        } else if (strncmp(argv[i], "--config=", 9) == 0) {
+            config_path = argv[i] + 9;
+        } else if (argv[i][0] == '-') {
+            print_usage(argv[0]);
+            return 1;
+        }
+    }
+#else
     static struct option long_options[] = {
         {"config",  required_argument, 0, 'c'},
         {"help",    no_argument,       0, 'h'},
@@ -60,6 +96,7 @@ int main(int argc, char *argv[]) {
                 return 1;
         }
     }
+#endif
 
     /* Initialize config with defaults */
     config_init_defaults(&cfg);
@@ -69,7 +106,11 @@ int main(int argc, char *argv[]) {
         if (!config_load(config_path, &cfg)) {
             fprintf(stderr, "Warning: Could not load config file: %s\n", config_path);
             fprintf(stderr, "Using default settings.\n");
+#ifdef _WIN32
+            Sleep(2000);
+#else
             sleep(2);
+#endif
         }
     } else {
         /* Try default config path */
@@ -78,14 +119,21 @@ int main(int argc, char *argv[]) {
     }
 
     /* Set up signal handlers */
+#ifdef _WIN32
+    SetConsoleCtrlHandler(console_handler, TRUE);
+#else
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+#endif
 
     /* Initialize subsystems */
     if (!metrics_init()) {
         fprintf(stderr, "Error: Failed to initialize metrics subsystem\n");
         return 1;
     }
+
+    /* Initialize GPU metrics (optional, continues if unavailable) */
+    bool gpu_available = gpu_metrics_init();
 
     render_init();
 
@@ -99,6 +147,7 @@ int main(int argc, char *argv[]) {
     cpu_metrics_t cpu;
     memory_metrics_t mem;
     disk_metrics_list_t disks;
+    gpu_metrics_t gpu;
 
     while (running) {
         /* Collect metrics */
@@ -106,19 +155,26 @@ int main(int argc, char *argv[]) {
         bool have_mem = cfg.show_memory && metrics_get_memory(&mem);
         bool have_disks = cfg.show_disk &&
                           metrics_get_disks(mount_points, cfg.disk_path_count, &disks);
+        bool have_gpu = cfg.show_gpu && gpu_available && gpu_metrics_get(&gpu);
 
         /* Render dashboard */
         render_dashboard(&cfg,
                          have_cpu ? &cpu : NULL,
                          have_mem ? &mem : NULL,
-                         have_disks ? &disks : NULL);
+                         have_disks ? &disks : NULL,
+                         have_gpu ? &gpu : NULL);
 
         /* Sleep for refresh interval */
+#ifdef _WIN32
+        Sleep(cfg.refresh_ms);
+#else
         usleep(cfg.refresh_ms * 1000);
+#endif
     }
 
     /* Cleanup */
     render_cleanup();
+    gpu_metrics_cleanup();
     metrics_cleanup();
 
     printf("\nDashboard stopped.\n");

@@ -19,6 +19,11 @@ typedef enum {
     COLOR_WHITE = 37
 } color_t;
 
+typedef enum {
+    GRAPH_STYLE_BAR = 0,    /* Traditional progress bar [####----] */
+    GRAPH_STYLE_LINE = 1    /* Sparkline history graph [▁▂▃▅▇▅▃▂] */
+} graph_style_t;
+
 typedef struct {
     /* General settings */
     int refresh_ms;                     /* Refresh rate in milliseconds */
@@ -28,6 +33,8 @@ typedef struct {
     bool show_cpu;
     bool show_memory;
     bool show_disk;
+    bool show_gpu;
+    bool show_temperature;  /* Show temp values inline with CPU/GPU */
 
     /* Colors */
     color_t bar_color;
@@ -45,7 +52,8 @@ typedef struct {
     char disk_paths[MAX_DISK_PATHS][MAX_PATH_LEN];
     int disk_path_count;
 
-    /* Bar style */
+    /* Graph style */
+    graph_style_t graph_style;          /* bar or line */
     char bar_fill_char;
     char bar_empty_char;
     int bar_width;

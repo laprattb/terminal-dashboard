@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b \"C:\\\\Users\\\\lapra\\\\Development\\\\terminal-dashboard\")",
+      "Bash(findstr:*)",
+      "Bash(where:*)",
+      "Bash(gcc:*)",
+      "Bash(cmake --build:*)",
+      "Bash(ctest:*)"
+    ]
+  }
+}

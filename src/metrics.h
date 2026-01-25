@@ -13,6 +13,7 @@ typedef struct {
     double system_percent;
     double idle_percent;
     double total_percent;  /* user + system */
+    int temperature_celsius;  /* -1 if unavailable */
 } cpu_metrics_t;
 
 typedef struct {

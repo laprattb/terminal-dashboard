@@ -16,8 +16,10 @@ if(APPLE)
     list(APPEND PLATFORM_SOURCES src/metrics_darwin.c)
 elseif(UNIX AND NOT APPLE)
     list(APPEND PLATFORM_SOURCES src/metrics_linux.c)
+    list(APPEND PLATFORM_SOURCES src/metrics_gpu_nvidia.c)
 elseif(WIN32)
     list(APPEND PLATFORM_SOURCES src/metrics_win32.c)
+    list(APPEND PLATFORM_SOURCES src/metrics_gpu_nvidia.c)
 endif()
 
 add_executable(dashboard ${COMMON_SOURCES} ${PLATFORM_SOURCES})
@@ -86,3 +88,30 @@ else()
 endif()
 
 add_test(NAME memory_leak_tests COMMAND test_memory_leaks)
+
+# Graph/history test executable
+add_executable(test_graph
+    tests/test_graph.c
+    src/config.c
+    src/render.c
+    ${PLATFORM_SOURCES}
+)
+
+# Platform-specific test libraries for graph tests
+if(APPLE)
+    target_link_libraries(test_graph "-framework CoreFoundation" "-framework IOKit")
+endif()
+
+# Link math library on Unix
+if(UNIX)
+    target_link_libraries(test_graph m)
+endif()
+
+# Compiler warnings for graph tests
+if(MSVC)
+    target_compile_options(test_graph PRIVATE /W4)
+else()
+    target_compile_options(test_graph PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+add_test(NAME graph_tests COMMAND test_graph)

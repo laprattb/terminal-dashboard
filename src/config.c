@@ -14,6 +14,8 @@ void config_init_defaults(config_t *cfg) {
     cfg->show_cpu = true;
     cfg->show_memory = true;
     cfg->show_disk = true;
+    cfg->show_gpu = true;
+    cfg->show_temperature = true;
 
     cfg->bar_color = COLOR_GREEN;
     cfg->title_color = COLOR_CYAN;
@@ -26,10 +28,15 @@ void config_init_defaults(config_t *cfg) {
     cfg->critical_threshold = 90;
 
     /* Default disk path */
+#ifdef _WIN32
+    strncpy(cfg->disk_paths[0], "C:\\", MAX_PATH_LEN - 1);
+#else
     strncpy(cfg->disk_paths[0], "/", MAX_PATH_LEN - 1);
+#endif
     cfg->disk_paths[0][MAX_PATH_LEN - 1] = '\0';
     cfg->disk_path_count = 1;
 
+    cfg->graph_style = GRAPH_STYLE_BAR;
     cfg->bar_fill_char = '#';
     cfg->bar_empty_char = '-';
     cfg->bar_width = 30;
@@ -134,6 +141,10 @@ bool config_load(const char *filename, config_t *cfg) {
                 cfg->show_memory = parse_bool(value);
             } else if (strcmp(key, "show_disk") == 0) {
                 cfg->show_disk = parse_bool(value);
+            } else if (strcmp(key, "show_gpu") == 0) {
+                cfg->show_gpu = parse_bool(value);
+            } else if (strcmp(key, "show_temperature") == 0) {
+                cfg->show_temperature = parse_bool(value);
             }
         } else if (strcmp(current_section, "colors") == 0) {
             if (strcmp(key, "bar") == 0) {
@@ -162,7 +173,13 @@ bool config_load(const char *filename, config_t *cfg) {
                 cfg->disk_path_count++;
             }
         } else if (strcmp(current_section, "style") == 0) {
-            if (strcmp(key, "bar_fill") == 0 && strlen(value) > 0) {
+            if (strcmp(key, "graph") == 0) {
+                if (strcmp(value, "line") == 0) {
+                    cfg->graph_style = GRAPH_STYLE_LINE;
+                } else {
+                    cfg->graph_style = GRAPH_STYLE_BAR;
+                }
+            } else if (strcmp(key, "bar_fill") == 0 && strlen(value) > 0) {
                 cfg->bar_fill_char = value[0];
             } else if (strcmp(key, "bar_empty") == 0 && strlen(value) > 0) {
                 cfg->bar_empty_char = value[0];
@@ -192,6 +209,15 @@ bool config_load(const char *filename, config_t *cfg) {
 
 const char* config_get_default_path(void) {
     if (default_config_path[0] == '\0') {
+#ifdef _WIN32
+        const char *appdata = getenv("APPDATA");
+        if (appdata) {
+            snprintf(default_config_path, MAX_PATH_LEN,
+                     "%s\\dashboard\\config.ini", appdata);
+        } else {
+            strncpy(default_config_path, ".\\dashboard.ini", MAX_PATH_LEN - 1);
+        }
+#else
         const char *home = getenv("HOME");
         if (home) {
             snprintf(default_config_path, MAX_PATH_LEN,
@@ -199,6 +225,7 @@ const char* config_get_default_path(void) {
         } else {
             strncpy(default_config_path, "./dashboard.ini", MAX_PATH_LEN - 1);
         }
+#endif
     }
     return default_config_path;
 }
